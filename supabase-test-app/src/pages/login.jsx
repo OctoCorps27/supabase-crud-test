@@ -21,9 +21,15 @@ import {
   Login as LoginIcon,
   PersonAdd,
 } from '@mui/icons-material'
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLoginForm } from '../hooks/useLoginForm'
+import { useAuth } from '../context/AuthContext'
 
 function Login() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+
   const {
     isLogin,
     showPassword,
@@ -40,6 +46,13 @@ function Login() {
     handleClickShowConfirmPassword,
   } = useLoginForm()
 
+  // ✅ Auto redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard')
+    }
+  }, [user, navigate])
+
   return (
     <Container component="main" maxWidth="xs">
       <Box
@@ -51,7 +64,7 @@ function Login() {
           py: 4,
         }}
       >
-        <Fade in={true} timeout={500}>
+        <Fade in timeout={500}>
           <Paper
             elevation={3}
             sx={{
@@ -62,7 +75,7 @@ function Login() {
               overflow: 'hidden',
             }}
           >
-            {/* Header with toggle */}
+            {/* Header */}
             <Box sx={{ textAlign: 'center', mb: 4 }}>
               <Box
                 sx={{
@@ -101,21 +114,22 @@ function Login() {
                 {isLogin ? 'Welcome Back!' : 'Create Account'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {isLogin 
-                  ? 'Please enter your details to sign in' 
+                {isLogin
+                  ? 'Please enter your details to sign in'
                   : 'Please fill in the information below'}
               </Typography>
             </Box>
 
-            {/* Messages */}
+            {/* Error Message */}
             {formError && (
               <Slide direction="down" in={!!formError}>
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setFormError('')}>
+                <Alert severity="error" sx={{ mb: 2 }}>
                   {formError}
                 </Alert>
               </Slide>
             )}
-            
+
+            {/* Success Message */}
             {successMessage && (
               <Slide direction="down" in={!!successMessage}>
                 <Alert severity="success" sx={{ mb: 2 }}>
@@ -126,7 +140,6 @@ function Login() {
 
             {/* Form */}
             <Box component="form" onSubmit={handleSubmit} noValidate>
-              {/* Name field - only for signup */}
               {!isLogin && (
                 <Fade in={!isLogin}>
                   <TextField
@@ -151,7 +164,6 @@ function Login() {
                 </Fade>
               )}
 
-              {/* Email field - always visible */}
               <TextField
                 fullWidth
                 name="email"
@@ -173,7 +185,6 @@ function Login() {
                 }}
               />
 
-              {/* Password field */}
               <TextField
                 fullWidth
                 name="password"
@@ -201,7 +212,6 @@ function Login() {
                 }}
               />
 
-              {/* Confirm Password - only for signup */}
               {!isLogin && (
                 <Fade in={!isLogin}>
                   <TextField
@@ -223,8 +233,15 @@ function Login() {
                       ),
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton onClick={handleClickShowConfirmPassword} edge="end">
-                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                          <IconButton
+                            onClick={handleClickShowConfirmPassword}
+                            edge="end"
+                          >
+                            {showConfirmPassword ? (
+                              <VisibilityOff />
+                            ) : (
+                              <Visibility />
+                            )}
                           </IconButton>
                         </InputAdornment>
                       ),
@@ -233,7 +250,6 @@ function Login() {
                 </Fade>
               )}
 
-              {/* Submit button */}
               <Button
                 type="submit"
                 fullWidth
@@ -241,23 +257,34 @@ function Login() {
                 size="large"
                 disabled={isLoading}
                 startIcon={isLogin ? <LoginIcon /> : <PersonAdd />}
-                sx={{ 
+                sx={{
                   mt: 3,
                   py: 1.5,
-                  position: 'relative',
                 }}
               >
-                {isLoading 
-                  ? (isLogin ? 'Signing in...' : 'Creating account...') 
-                  : (isLogin ? 'Sign In' : 'Create Account')}
+                {isLoading
+                  ? isLogin
+                    ? 'Signing in...'
+                    : 'Creating account...'
+                  : isLogin
+                  ? 'Sign In'
+                  : 'Create Account'}
               </Button>
 
-              {/* Terms and conditions - only for signup */}
               {!isLogin && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 2 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', textAlign: 'center', mt: 2 }}
+                >
                   By signing up, you agree to our{' '}
-                  <Link href="#" underline="hover">Terms of Service</Link> and{' '}
-                  <Link href="#" underline="hover">Privacy Policy</Link>
+                  <Link href="#" underline="hover">
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link href="#" underline="hover">
+                    Privacy Policy
+                  </Link>
                 </Typography>
               )}
             </Box>

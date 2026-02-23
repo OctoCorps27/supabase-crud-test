@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 export const useLoginForm = () => {
   const [isLogin, setIsLogin] = useState(true)
@@ -12,32 +13,22 @@ export const useLoginForm = () => {
   })
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-
-  const handleClickShowPassword = () => setShowPassword(!showPassword)
-  const handleClickShowConfirmPassword = () => setShowConfirmPassword(!showConfirmPassword)
+  const [successMessage, setSuccessMessage] = useState('')
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData({
-      ...formData,
-      [name]: value,
-    })
-    // Clear field error when user starts typing
+    setFormData((prev) => ({ ...prev, [name]: value }))
+    // Clear field-specific error when user types
     if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: '',
-      })
+      setErrors((prev) => ({ ...prev, [name]: '' }))
     }
-    // Clear general errors
     setFormError('')
     setSuccessMessage('')
   }
 
   const toggleMode = () => {
-    setIsLogin(!isLogin)
+    setIsLogin((prev) => !prev)
     setFormData({
       name: '',
       email: '',
@@ -49,92 +40,114 @@ export const useLoginForm = () => {
     setSuccessMessage('')
   }
 
-  const validateLogin = () => {
+  const validate = () => {
     const newErrors = {}
-    if (!formData.email) {
-      newErrors.email = 'Email is required'
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid'
-    }
-    if (!formData.password) {
-      newErrors.password = 'Password is required'
-    }
-    return newErrors
-  }
 
-  const validateSignup = () => {
-    const newErrors = {}
-    if (!formData.name) {
-      newErrors.name = 'Name is required'
-    }
+    // Email validation
     if (!formData.email) {
       newErrors.email = 'Email is required'
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid'
+      newErrors.email = 'Please enter a valid email'
     }
+
+    // Password validation
     if (!formData.password) {
       newErrors.password = 'Password is required'
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters'
     }
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password'
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match'
+
+    if (!isLogin) {
+      if (!formData.name) {
+        newErrors.name = 'Name is required'
+      } else if (formData.name.length < 2) {
+        newErrors.name = 'Name must be at least 2 characters'
+      }
+      
+      if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = 'Passwords do not match'
+      }
     }
+
     return newErrors
+  }
+
+  const getErrorMessage = (error) => {
+    const messages = {
+      'Invalid login credentials': 'Invalid email or password',
+      'Email not confirmed': 'Please verify your email address',
+      'User already registered': 'An account with this email already exists',
+      'Invalid email': 'Please enter a valid email address',
+    }
+    return messages[error.message] || error.message
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    const newErrors = isLogin ? validateLogin() : validateSignup()
-    
-    if (Object.keys(newErrors).length === 0) {
-      setIsLoading(true)
-      setFormError('')
-      
-      // Simulate API call
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1500))
-        
-        if (isLogin) {
-          // Login logic
-          if (formData.email === 'test@example.com' && formData.password === 'password123') {
-            setSuccessMessage('Login successful! Redirecting...')
-            console.log('Login successful:', formData.email)
-            // Handle successful login here
-          } else {
-            throw new Error('Invalid email or password')
+
+    const validationErrors = validate()
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors)
+      return
+    }
+
+    setIsLoading(true)
+    setFormError('')
+    setSuccessMessage('')
+
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        })
+
+        if (error) throw error
+      } else {
+        const { data, error } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              name: formData.name,
+            },
+            emailRedirectTo: `${window.location.origin}/dashboard`
           }
-        } else {
-          // Sign up logic
-          console.log('Sign up successful:', formData)
-          setSuccessMessage('Account created successfully! You can now log in.')
-          // Automatically switch to login after successful signup
-          setTimeout(() => {
-            setIsLogin(true)
-            setFormData({
-              name: '',
-              email: '',
-              password: '',
-              confirmPassword: '',
-            })
-            setSuccessMessage('')
-          }, 2000)
+        })
+
+        if (error) throw error
+
+        // Check if email confirmation is required
+        if (data.user && !data.user.confirmed_at) {
+          setSuccessMessage('Please check your email to confirm your account')
+          // Reset form but don't switch to login
+          setFormData({
+            name: '',
+            email: '',
+            password: '',
+            confirmPassword: '',
+          })
+          return
         }
-      } catch (error) {
-        setFormError(error.message)
-      } finally {
-        setIsLoading(false)
+
+        // If no confirmation needed, switch to login
+        setSuccessMessage('Account created successfully! Please log in.')
+        setIsLogin(true)
+        setFormData({
+          name: '',
+          email: formData.email, // Keep email for convenience
+          password: '',
+          confirmPassword: '',
+        })
       }
-    } else {
-      setErrors(newErrors)
+    } catch (error) {
+      setFormError(getErrorMessage(error))
+    } finally {
+      setIsLoading(false)
     }
   }
 
   return {
-    // State
     isLogin,
     showPassword,
     showConfirmPassword,
@@ -143,12 +156,10 @@ export const useLoginForm = () => {
     formError,
     successMessage,
     isLoading,
-    
-    // Handlers
     handleChange,
     handleSubmit,
     toggleMode,
-    handleClickShowPassword,
-    handleClickShowConfirmPassword,
+    setShowPassword,
+    setShowConfirmPassword,
   }
 }
